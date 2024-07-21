@@ -1,4 +1,5 @@
 import socket
+import threading
 
 def check_header(request):
     # Split the request into lines
@@ -30,11 +31,28 @@ def parse_response(request):
         response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {content_length}\r\n\r\n{endpoint_string}".encode('utf-8')
     return response
 
+def handle_client(client_socket):
+    """
+    handle a single client connection
+    """
+    # Receive the entire request
+    request = client_socket.recv(1024).decode('utf-8')
+
+        # Check if there is a User agent header
+    if check_header(request) == None:
+        response = parse_response(request)
+    else:
+        response = check_header(request)
+        
+    client_socket.sendall(response)
+    client_socket.close()
+
 def main():
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     # first curl -v http://localhost:4221 to test the server if returns 200 ok message
     # second curl -v http://localhost:4221/abcdefg return error if path is not found
     # third curl -v http://localhost:4221/echo/abc return body "abc" when using echo
+    # fourth curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent return value header in response
     print("Logs from your program will appear here!")
 
     """create a TCP/IP
@@ -44,20 +62,21 @@ def main():
         )"""
     server_socket = socket.create_server(("localhost", 4221)) 
 
-    while True:
-        client_socket, addr = server_socket.accept()
-        
-        # Receive the entire request
-        request = client_socket.recv(1024).decode('utf-8')
+    server_socket = socket.create_server(("localhost", 4221)) 
 
-        # Check if there is a User agent header
-        if check_header(request) == None:
-            response = parse_response(request)
-        else:
-            response = check_header(request)
-        
-        client_socket.sendall(response)
-        client_socket.close()
+    try:
+        while True:
+            client_socket, addr = server_socket.accept()
+            """ 
+            the thread library is used to handle multiple client connection
+            """
+            # Start a new thread to handle the client connection
+            thread = threading.Thread(target=handle_client, args=(client_socket,))
+            thread.start()
+    except KeyboardInterrupt:
+        print("\nServer shutting down.")
+    finally:
+        server_socket.close()
     
     
 
