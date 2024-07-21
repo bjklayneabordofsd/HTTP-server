@@ -48,11 +48,17 @@ def handle_client(client_socket):
     client_socket.close()
 
 def main():
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    # first curl -v http://localhost:4221 to test the server if returns 200 ok message
-    # second curl -v http://localhost:4221/abcdefg return error if path is not found
-    # third curl -v http://localhost:4221/echo/abc return body "abc" when using echo
-    # fourth curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent return value header in response
+    """
+    You can use print statements as follows for debugging, they'll be visible when running tests.
+    first curl -v http://localhost:4221 to test the server if returns 200 ok message
+    second curl -v http://localhost:4221/abcdefg return error if path is not found
+    third curl -v http://localhost:4221/echo/abc return body "abc" when using echo
+    fourth curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent return value header in response
+    fifth   (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+            (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+            (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+    """
+    
     print("Logs from your program will appear here!")
 
     """create a TCP/IP
