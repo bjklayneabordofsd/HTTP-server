@@ -1,51 +1,6 @@
 import socket
 import threading
-
-def check_header(request):
-    # Split the request into lines
-    lines = request.split('\r\n')
-    
-    # Iterate through each line to find the User-Agent header
-    for line in lines:
-        if line.startswith("User-Agent:"):
-            # Extract the User-Agent value by removing the "User-Agent: " prefix
-            user_agent_value = line[len("User-Agent: "):]
-            content_length = len(user_agent_value)
-            # Return a response containing the User-Agent value
-            return f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {content_length}\r\n\r\n{user_agent_value}".encode('utf-8')
-    
-    # If no User-Agent header is found, return None
-    return None
-
-def parse_response(request):
-    # Simple path extraction (this is very basic and might not work for all cases)
-    path = request.split(' ')[1]
-
-    response = b"HTTP/1.1 404 Not Found\r\n\r\n"
-
-    if path == "/":
-        response = b"HTTP/1.1 200 OK\r\n\r\n"
-    elif path.startswith('/echo/'):
-        endpoint_string = path[len("/echo/"):]
-        content_length = len(endpoint_string)
-        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {content_length}\r\n\r\n{endpoint_string}".encode('utf-8')
-    return response
-
-def handle_client(client_socket):
-    """
-    handle a single client connection
-    """
-    # Receive the entire request
-    request = client_socket.recv(1024).decode('utf-8')
-
-        # Check if there is a User agent header
-    if check_header(request) == None:
-        response = parse_response(request)
-    else:
-        response = check_header(request)
-        
-    client_socket.sendall(response)
-    client_socket.close()
+import sys
 
 def main():
     """
@@ -54,9 +9,12 @@ def main():
     second curl -v http://localhost:4221/abcdefg return error if path is not found
     third curl -v http://localhost:4221/echo/abc return body "abc" when using echo
     fourth curl -v --header "User-Agent: foobar/1.2.3" http://localhost:4221/user-agent return value header in response
-    fifth   (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
-            (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
-            (sleep 3 && printf "GET / HTTP/1.1\r\n\r\n") | nc localhost 4221 &
+    fifth   (sleep 3 && printf "GET / HTTP/1.1\ r\ n\ r\ n") | nc localhost 4221 &
+            (sleep 3 && printf "GET / HTTP/1.1\ r\ n\ r\ n") | nc localhost 4221 &
+            (sleep 3 && printf "GET / HTTP/1.1\ r\ n\ r\ n") | nc localhost 4221 &
+            test multiple concurrent request 
+    sixth echo -n 'Hello, World!' > /tmp/foo
+          curl -i http://localhost:4221/files/foo response body should return file contents if file doesnt exist return 404
     """
     
     print("Logs from your program will appear here!")
@@ -68,22 +26,42 @@ def main():
         )"""
     server_socket = socket.create_server(("localhost", 4221)) 
 
-    server_socket = socket.create_server(("localhost", 4221)) 
+    def handle_req(client, addr):
+        data = client.recv(1024).decode()
+        req = data.split("\r\n")
+        path = req[0].split(" ")[1]
+        if path == "/":
+            response = "HTTP/1.1 200 OK\r\n\r\n".encode()
+        elif path.startswith("/echo"):
+            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
+        elif path.startswith("/user-agent"):
+            user_agent = req[2].split(": ")[1]
+            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
+        elif path.startswith("/files"):
+            directory = sys.argv[2]
+            filename = path[7:]
+            print(directory, filename)
+            try:
+                with open(f"/{directory}/{filename}", "r") as f:
+                    body = f.read()
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode()
+            except Exception as e:
+                response = f"HTTP/1.1 404 Not Found\r\n\r\n".encode()
+        else:
+            response = "HTTP/1.1 404 Not Found\r\n\r\n".encode()
+        client.send(response)
 
     try:
         while True:
             client_socket, addr = server_socket.accept()
-            """ 
-            the thread library is used to handle multiple client connection
-            """
+
             # Start a new thread to handle the client connection
-            thread = threading.Thread(target=handle_client, args=(client_socket,))
-            thread.start()
+            thread = threading.Thread(target=handle_req, args=(client_socket, addr)).start()
+
     except KeyboardInterrupt:
         print("\nServer shutting down.")
     finally:
         server_socket.close()
-    
     
 
 if __name__ == "__main__":
