@@ -1,7 +1,7 @@
 import socket
 import threading
 import sys
-
+import os
 def main():
     """
     You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -30,6 +30,8 @@ def main():
         data = client.recv(1024).decode()
         req = data.split("\r\n")
         path = req[0].split(" ")[1]
+        method = req[0].split(" ")[0]
+
         if path == "/":
             response = "HTTP/1.1 200 OK\r\n\r\n".encode()
         elif path.startswith("/echo"):
@@ -38,15 +40,30 @@ def main():
             user_agent = req[2].split(": ")[1]
             response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
         elif path.startswith("/files"):
-            directory = sys.argv[2]
-            filename = path[7:]
-            print(directory, filename)
-            try:
-                with open(f"/{directory}/{filename}", "r") as f:
-                    body = f.read()
-                response = f"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode()
-            except Exception as e:
-                response = f"HTTP/1.1 404 Not Found\r\n\r\n".encode()
+            if method == "POST":
+                body_start_index = data.find("\r\n\r\n") + 4
+                body = data[body_start_index:].strip()
+    
+                # Extract the filename from the path, including the directory part
+                filename = path[len("/files/"):]
+    
+                # Define the base directory where files will be stored
+                base_directory = sys.argv[2]
+    
+                # Construct the full path where the file should be saved
+                # This includes creating the directory if it doesn't exist
+                filepath = os.path.join(base_directory, filename)
+    
+                # Create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    
+                # Write the body to a file
+                try:
+                    with open(filepath, "w") as f:
+                        f.write(body)
+                    response = f"HTTP/1.1 201 Created\r\n\r\n".encode()
+                except Exception as e:
+                    response = f"HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\nContent-Length: {len(str(e))}\r\n\r\nError creating file: {str(e)}".encode()
         else:
             response = "HTTP/1.1 404 Not Found\r\n\r\n".encode()
         client.send(response)
