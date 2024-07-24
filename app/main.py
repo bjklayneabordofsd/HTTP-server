@@ -16,7 +16,11 @@ def main():
     sixth echo -n 'Hello, World!' > /tmp/foo
           curl -i http://localhost:4221/files/foo response body should return file contents if file doesnt exist return 404
     seventh curl -v --data "12345" -H "Content-Type: application/octet-stream" http://localhost:4221/files/file_123 creates a directory and file if doesnt exist 
-            
+    eighth  curl -v -H "Accept-Encoding: gzip" http://localhost:4221/echo/abc response should include content encoding type and body is omitted
+            curl -v -H "Accept-Encoding: invalid-encoding" http://localhost:4221/echo/abc if content encode type is not supported dont return type
+    nineth  curl -v -H "Accept-Encoding: invalid-encoding-1, gzip, invalid-encoding-2" http://localhost:4221/echo/abc  
+            curl -v -H "Accept-Encoding: invalid-encoding-1, invalid-encoding-2" http://localhost:4221/echo/abc multiple values if gzip is the content encoding return content encoding type
+    tenth
     """
     
     print("Logs from your program will appear here!")
@@ -28,24 +32,39 @@ def main():
         )"""
     server_socket = socket.create_server(("localhost", 4221)) 
 
+    def list_to_dictionary(mylist):
+        headers = {}
+        for item in mylist:
+            if ":" in item:
+                key, value = item.split(": ", 1)  # Split only once to keep the entire header value together
+                if "," in value:  # Check if the value contains a comma
+                    # Split the value by comma to handle multiple values
+                    values_list = value.split(", ")
+                    headers[key] = values_list
+                else:
+                    headers[key] = value.strip()  # Remove leading/trailing whitespace
+                    
+        accept_encoding = headers.get('Accept-Encoding', [])
+        if 'gzip' in accept_encoding:
+            accept_encoding_value = 'gzip'
+        elif accept_encoding == []:
+            accept_encoding_value = 'empty'
+        else:
+            accept_encoding_value = 'unsupported'
+        return accept_encoding_value
+
     def handle_req(client, addr):
         data = client.recv(1024).decode()
         req = data.split("\r\n")
         path = req[0].split(" ")[1]
         method = req[0].split(" ")[0]
-        headers = {}
-        for item in req:
-            if ":" in item:
-                key, value = item.split(": ")
-                headers[key] = value
-        accept_encoding_value = headers.get('Accept-Encoding')
 
         if path == "/":
             response = "HTTP/1.1 200 OK\r\n\r\n".encode()
         elif path.startswith("/echo"):
-            if accept_encoding_value == 'gzip':
-               response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: {accept_encoding_value}\r\n\r\n".encode()
-            elif accept_encoding_value == ''or accept_encoding_value == None:
+            if list_to_dictionary(req) == 'gzip':
+               response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: {list_to_dictionary(req)}\r\n\r\n".encode()
+            elif list_to_dictionary(req) == 'empty':
                 response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
             else:
                 response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n".encode()
