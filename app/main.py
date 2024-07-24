@@ -15,6 +15,8 @@ def main():
             test multiple concurrent request 
     sixth echo -n 'Hello, World!' > /tmp/foo
           curl -i http://localhost:4221/files/foo response body should return file contents if file doesnt exist return 404
+    seventh curl -v --data "12345" -H "Content-Type: application/octet-stream" http://localhost:4221/files/file_123 creates a directory and file if doesnt exist 
+            
     """
     
     print("Logs from your program will appear here!")
@@ -31,11 +33,22 @@ def main():
         req = data.split("\r\n")
         path = req[0].split(" ")[1]
         method = req[0].split(" ")[0]
+        headers = {}
+        for item in req:
+            if ":" in item:
+                key, value = item.split(": ")
+                headers[key] = value
+        accept_encoding_value = headers.get('Accept-Encoding')
 
         if path == "/":
             response = "HTTP/1.1 200 OK\r\n\r\n".encode()
         elif path.startswith("/echo"):
-            response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
+            if accept_encoding_value == 'gzip':
+               response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: {accept_encoding_value}\r\n\r\n".encode()
+            elif accept_encoding_value == ''or accept_encoding_value == None:
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(path[6:])}\r\n\r\n{path[6:]}".encode()
+            else:
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n".encode()
         elif path.startswith("/user-agent"):
             user_agent = req[2].split(": ")[1]
             response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(user_agent)}\r\n\r\n{user_agent}".encode()
